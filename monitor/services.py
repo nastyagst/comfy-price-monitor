@@ -1,7 +1,13 @@
+import os
+
 import httpx
 from bs4 import BeautifulSoup
 from decimal import Decimal
-from monitor.models import Product
+
+from monitor.models import Product, PriceAlert
+from dotenv import load_dotenv
+
+load_dotenv()
 
 
 def update_product_price(product_id):
@@ -35,3 +41,38 @@ def update_product_price(product_id):
     except Exception as e:
         print(f"Error updating {product.title}: {e}")
     return False
+
+
+def send_telegram_notification(title, old_price, new_price, url):
+    token = os.getenv("TELEGRAM_BOT_TOKEN")
+    chat_id = os.getenv("MY_CHAT_ID")
+
+    message = (
+        f"📉 <b>Ціна впала!</b>\n\n"
+        f"Товар: {title}\n"
+        f"Стара ціна: {old_price} грн\n"
+        f"Нова ціна: <b>{new_price} грн</b>\n\n"
+        f"<a href='{url}'>Купити на Comfy</a>"
+    )
+
+    api_url = f"https://api.telegram.org/bot{token}/sendMessage"
+    payload = {"chat_id": chat_id, "text": message, "parse_mode": "HTML"}
+    with httpx.Client() as client:
+        client.post(api_url, json=payload)
+
+
+def get_user_alerts_list():
+    alerts = PriceAlert.objects.filter(is_active=True)
+
+    if not alerts.exists():
+        return "У тебе поки немає активних підписок."
+    response = "<b>Твій список моніторингу:</b>\n\n"
+    for alert in alerts:
+        response += (
+            f"📍 {alert.product.title}\n"
+            f"Ціна зараз: {alert.product.current_price} грн\n"
+            f"Цільова: {alert.target_price} грн\n"
+            f"<a href='{alert.product.url}'>Посилання</a>\n"
+            f"-------------------\n"
+        )
+    return response
