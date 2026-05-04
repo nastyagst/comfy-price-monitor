@@ -8,7 +8,7 @@ class Product(models.Model):
     title = models.CharField(max_length=255)
     url = models.URLField(unique=True)
     current_price = models.DecimalField(
-        max_digits=2,
+        max_digits=10,
         decimal_places=2,
         null=True,
         blank=True,
