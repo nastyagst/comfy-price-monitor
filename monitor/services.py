@@ -21,9 +21,17 @@ def update_product_price(product_id):
                     raw_price = price_element.get_text(strip=True)
                     clean_price = "".join(filter(str.isdigit, raw_price))
 
-                    product.current_price = Decimal(clean_price)
-                    product.save()
-                    return True
+                    if clean_price and clean_price.isdigit():
+                        product.current_price = Decimal(clean_price)
+                        title_element = soup.find("h1")
+                        if title_element:
+                            product.title = title_element.get_text(strip=True)
+                        product.save()
+                        return True
+                    else:
+                        print(f"Price digits not found for {product.title}")
+                else:
+                    print(f"Price element not found for {product.title}")
     except Exception as e:
         print(f"Error updating {product.title}: {e}")
     return False
