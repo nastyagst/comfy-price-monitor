@@ -1,9 +1,7 @@
 import os
-
 import httpx
 from bs4 import BeautifulSoup
 from decimal import Decimal
-
 from monitor.models import Product, PriceAlert
 from dotenv import load_dotenv
 
@@ -13,33 +11,43 @@ load_dotenv()
 def update_product_price(product_id):
     product = Product.objects.get(id=product_id)
     headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
+        "Accept-Language": "uk-UA,uk;q=0.9,en-US;q=0.8,en;q=0.7",
+        "Referer": "https://comfy.ua/ua/",
+        "Connection": "keep-alive",
     }
 
     try:
-        with httpx.Client(headers=headers, follow_redirects=True) as client:
+        with httpx.Client(
+            headers=headers, follow_redirects=True, timeout=15.0
+        ) as client:
             response = client.get(product.url)
-            if response.status_code == 200:
-                soup = BeautifulSoup(response.text, "html.parser")
-                price_element = soup.find("div", class_="price__current")
 
-                if price_element:
-                    raw_price = price_element.get_text(strip=True)
-                    clean_price = "".join(filter(str.isdigit, raw_price))
+            if response.status_code != 200:
+                print(f"Status: {response.status_code}")
+                return False
 
-                    if clean_price and clean_price.isdigit():
-                        product.current_price = Decimal(clean_price)
-                        title_element = soup.find("h1")
-                        if title_element:
-                            product.title = title_element.get_text(strip=True)
-                        product.save()
-                        return True
-                    else:
-                        print(f"Price digits not found for {product.title}")
-                else:
-                    print(f"Price element not found for {product.title}")
+            soup = BeautifulSoup(response.text, "html.parser")
+            price_element = (
+                soup.find("div", class_="price__current")
+                or soup.find("span", class_="price__current")
+                or soup.select_one(".price__current")
+            )
+
+            if price_element:
+                raw_price = price_element.get_text(strip=True)
+                clean_price = "".join(filter(str.isdigit, raw_price))
+
+                if clean_price:
+                    product.current_price = Decimal(clean_price)
+                    title_element = soup.find("h1")
+                    if title_element:
+                        product.title = title_element.get_text(strip=True)
+                    product.save()
+                    return True
     except Exception as e:
-        print(f"Error updating {product.title}: {e}")
+        print(f"Error: {e}")
     return False
 
 
@@ -66,6 +74,7 @@ def get_user_alerts_list():
 
     if not alerts.exists():
         return "У тебе поки немає активних підписок."
+
     response = "<b>Твій список моніторингу:</b>\n\n"
     for alert in alerts:
         response += (
