@@ -1,7 +1,8 @@
 import telebot
 from django.core.management.base import BaseCommand
 from django.conf import settings
-from monitor.services import get_user_alerts_list
+from monitor.services import get_user_alerts_list, update_product_price
+from monitor.models import Product, PriceAlert
 
 
 class Command(BaseCommand):
@@ -14,7 +15,7 @@ class Command(BaseCommand):
         def start_handler(message):
             bot.reply_to(
                 message,
-                "Привіт! Я твій монітор цін. Напиши /list, щоб перевірити товари.",
+                "Привіт! Я твій монітор цін. Напиши /list для списку або скинь посилання на товар з Comfy.",
             )
 
         @bot.message_handler(commands=["list"])
@@ -22,7 +23,29 @@ class Command(BaseCommand):
             response = get_user_alerts_list()
             bot.reply_to(message, response, parse_mode="HTML")
 
-        self.stdout.write(
-            self.style.SUCCESS("Бот запущений... Спробуй написати /list у Telegram")
-        )
+        @bot.message_handler(regexp=r"comfy\.ua/.*\.html")
+        def add_alert(message):
+            url = message.text.strip()
+            bot.reply_to(message, "🔍 Перевіряю товар...")
+
+            product, _ = Product.objects.get_or_create(url=url)
+            success = update_product_price(product.id)
+
+            if success:
+                product.refresh_from_db()
+                PriceAlert.objects.get_or_create(
+                    product=product, defaults={"target_price": product.current_price}
+                )
+
+                msg = (
+                    f"✅ <b>Додано!</b>\n\n"
+                    f"Назва: {product.title}\n"
+                    f"Ціна: {product.current_price} грн\n\n"
+                    f"Стежу за змінами."
+                )
+                bot.reply_to(message, msg, parse_mode="HTML")
+            else:
+                bot.reply_to(message, "❌ Помилка при отриманні даних.")
+
+        self.stdout.write(self.style.SUCCESS("Бот запущений..."))
         bot.polling(none_stop=True)
