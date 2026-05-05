@@ -15,7 +15,7 @@ class Command(BaseCommand):
         def start_handler(message):
             bot.reply_to(
                 message,
-                "Привіт! Я твій монітор цін. Напиши /list для списку або скинь посилання на товар з Comfy.",
+                "Привіт! Я твій монітор цін. Напиши /list для списку або скинь посилання на товар (Brain, ITbox, Comfy).",
             )
 
         @bot.message_handler(commands=["list"])
@@ -23,7 +23,9 @@ class Command(BaseCommand):
             response = get_user_alerts_list()
             bot.reply_to(message, response, parse_mode="HTML")
 
-        @bot.message_handler(regexp=r"comfy\.ua/.*\.html")
+        @bot.message_handler(
+            func=lambda message: message.text and message.text.startswith("http")
+        )
         def add_alert(message):
             url = message.text.strip()
             bot.reply_to(message, "🔍 Перевіряю товар...")
@@ -45,7 +47,10 @@ class Command(BaseCommand):
                 )
                 bot.reply_to(message, msg, parse_mode="HTML")
             else:
-                bot.reply_to(message, "❌ Помилка при отриманні даних.")
+                bot.reply_to(
+                    message,
+                    "❌ Не вдалося отримати дані. Можливо, сайт захищений або посилання невірне.",
+                )
 
         self.stdout.write(self.style.SUCCESS("Бот запущений..."))
         bot.polling(none_stop=True)
